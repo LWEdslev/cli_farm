@@ -132,7 +132,7 @@ struct Field {
 }
 
 impl Field {
-    fn new(id: u32, crop: Crop) -> Field {
+    fn new(crop: Crop) -> Field {
         Self {
             crop,
             level: 1,
@@ -170,7 +170,7 @@ impl Field {
     }
 
     fn farm(&mut self) -> Result<()> {
-        if !self.planted() { return Err(GameErrors::NotYetReady) }
+        if !self.planted() { return Err(GameErrors::AlreadyFarmed) }
         if self.time_to_farm(get_sys_timestamp()) > 0 { return Err(GameErrors::NotYetReady) }
         self.plant_timestamp = None;
         Ok(())
@@ -198,8 +198,7 @@ impl Farm {
     fn buy_field(&mut self, crop: Crop) -> Result<()> {
         let price = crop.get_new_field_price();
         if self.money < price { return Err(GameErrors::InsufficientFunds) }
-        let id = self.fields.len() as u32;
-        self.fields.push(Field::new(id, crop));
+        self.fields.push(Field::new(crop));
         self.money -= price;
         Ok(())
     }
@@ -350,11 +349,12 @@ fn print_farm(farm: &Farm) {
         } else {
             format!("{} field, level {}, price to plant ${:.2}", f.crop, f.level, f.crop.get_planting_price())
         }
-    ).collect::<Vec<String>>().join("\n");
+    ).collect::<Vec<String>>().join("\n  ");
     println!(
-"Balance: {}
-Fields: [{}]
-", farm.money, field_string)
+"Fields: [
+  {}
+]
+", field_string)
 }
 
 fn print_shop() {
@@ -380,6 +380,8 @@ fn print_fields(farm: &Farm) {
 
 fn input(max: u32) -> u32 {
     loop {
+        print!("> ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
         let mut input = String::new();
         match std::io::stdin().read_line(&mut input) {
             Ok(_) => (),
