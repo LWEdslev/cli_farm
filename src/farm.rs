@@ -1,4 +1,6 @@
 use std::fmt;
+use colored::Color;
+use crossterm::style::Stylize;
 use strum::IntoEnumIterator;
 use util::Result;
 
@@ -42,24 +44,21 @@ impl Crop {
     }
 
     pub fn level_multiplier(&self) -> f64 {
-        match self {
-            Crop::Wheat => 0.5,
-            Crop::Potato => 1.0,
-            Crop::Carrot => 4.0,
-        }
+        0.5
     }
 
     pub fn grow_time(&self) -> u128 {
-        match self {
-            Crop::Wheat => util::seconds_to_millis(10),
-            Crop::Potato => util::seconds_to_millis(20),
-            Crop::Carrot => util::seconds_to_millis(40),
-        }
+        let time = match self {
+            Crop::Wheat => 100,
+            Crop::Potato => 200,
+            Crop::Carrot => 400,
+        };
+        util::seconds_to_millis(time)
     }
 
     pub fn payout(&self) -> Money {
         match self {
-            Crop::Wheat => 3.,
+            Crop::Wheat => 1.,
             Crop::Potato => 10.,
             Crop::Carrot => 100.,
         }
@@ -76,9 +75,9 @@ impl Crop {
 impl fmt::Display for Crop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Crop::Wheat => "Wheat",
-            Crop::Potato => "Potato",
-            Crop::Carrot => "Carrot",
+            Crop::Wheat => "Wheat".bold().dark_green(),
+            Crop::Potato => "Potato".bold().dark_yellow(),
+            Crop::Carrot => "Carrot".bold().yellow(),
         };
         write!(f, "{s}")
     }
@@ -137,20 +136,22 @@ impl Field {
     }
 
     pub fn earnings(&self) -> Money {
-        let mult = (1. + self.crop.level_multiplier()) + (1. + self.crop.level_multiplier()/10.);
-        self.crop.payout() + (mult*((self.level) as f64))
+        let payout = self.crop.payout();
+        payout * (1. + self.crop.level_multiplier()).powi(self.level as i32)
     }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Farm {
+    pub name: String,
     pub money: f64,
     pub fields: Vec<Field>,
 }
 
 impl Farm {
-    pub fn new() -> Self {
+    pub fn new(name: String) -> Self {
         Self {
+            name,
             money: 20.,
             fields: Vec::new(),
         }
@@ -214,9 +215,9 @@ impl Farm {
         std::io::Write::write_all(&mut std::io::BufWriter::new(file), json.as_bytes()).unwrap();
     }
 
-    pub fn load_from_path(&mut self, path: String) {
+    pub fn load_from_path(path: String) -> Self {
         let contents = std::fs::read_to_string(path).unwrap();
         let farm: Farm = serde_json::from_str(&contents).unwrap();
-        *self = farm;
+        farm
     }
 }
