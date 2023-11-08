@@ -277,7 +277,7 @@ fn cli() {
                     let id = input(farm.fields.len() as u32) - 1;
                     match farm.plant_field(id) {
                         Ok(_) => println!("Field planted"),
-                        Err(e) => println!("Error: {:?}", e),
+                        Err(e) => println!("{}", e),
                     }
                 }
             },
