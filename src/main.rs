@@ -1,6 +1,5 @@
 use core::fmt;
 use std::{thread, time::Duration};
-
 use serde::{Serialize, Deserialize};
 use strum::IntoEnumIterator;
 
@@ -9,7 +8,7 @@ fn main() {
 }
 
 /// Milliseconds since the UNIX epoch
-fn get_sys_timestamp() -> u128 {
+fn timestamp() -> u128 {
     let now = std::time::SystemTime::now();
     let since_the_epoch = now.duration_since(std::time::UNIX_EPOCH).expect("Time went backwards");
     let millis = since_the_epoch.as_millis();
@@ -17,7 +16,7 @@ fn get_sys_timestamp() -> u128 {
 }
 
 #[derive(Debug)]
-enum GameErrors {
+enum GameError {
     InsufficientFunds,
     MaxLevelReached,
     OutOfBounds,
@@ -26,21 +25,21 @@ enum GameErrors {
     NotYetReady,
 }
 
-impl fmt::Display for GameErrors {
+impl fmt::Display for GameError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            GameErrors::InsufficientFunds => "Insufficient funds",
-            GameErrors::MaxLevelReached => "Max level reached",
-            GameErrors::OutOfBounds => "Out of bounds",
-            GameErrors::AlreadyPlanted => "Already planted",
-            GameErrors::AlreadyFarmed => "Already farmed",
-            GameErrors::NotYetReady => "Not yet ready",
+            GameError::InsufficientFunds => "Insufficient funds",
+            GameError::MaxLevelReached => "Max level reached",
+            GameError::OutOfBounds => "Out of bounds",
+            GameError::AlreadyPlanted => "Already planted",
+            GameError::AlreadyFarmed => "Already farmed",
+            GameError::NotYetReady => "Not yet ready",
         };
         write!(f, "{s}")
     }
 }
 
-type Result<T> = core::result::Result<T, GameErrors>;
+type Result<T> = core::result::Result<T, GameError>;
 
 fn seconds_to_millis(seconds: u128) -> u128 {
     seconds * 1000
@@ -83,9 +82,9 @@ impl Crop {
 
     fn level_multiplier(&self) -> f64 {
         match self {
-            Crop::Wheat => 0.1,
-            Crop::Potato => 0.2,
-            Crop::Carrot => 0.4,
+            Crop::Wheat => 0.5,
+            Crop::Potato => 1.0,
+            Crop::Carrot => 4.0,
         }
     }
 
@@ -107,7 +106,7 @@ impl Crop {
 
     fn get_next_level_price(&self, level: Level) -> Money {
         let base_price = self.get_planting_price() * 10.;
-        let level_multiplier = self.level_multiplier();
+        let level_multiplier = self.level_multiplier()/2.;
         let price = base_price * (level_multiplier * level as f64);
         price
     }
@@ -145,12 +144,12 @@ impl Field {
     }
 
     fn level_up_price(&self) -> Result<Money> {
-        if self.level >= self.crop.get_max_level() { return Err(GameErrors::MaxLevelReached) }
+        if self.level >= self.crop.get_max_level() { return Err(GameError::MaxLevelReached) }
         Ok(self.crop.get_next_level_price(self.level))
     }
 
     fn level_up(&mut self) -> Result<()> {
-        if self.level >= self.crop.get_max_level() { return Err(GameErrors::MaxLevelReached) }
+        if self.level >= self.crop.get_max_level() { return Err(GameError::MaxLevelReached) }
         self.level += 1;
         Ok(())
     }
@@ -160,7 +159,7 @@ impl Field {
     }
 
     fn plant(&mut self, timestamp: u128) -> Result<()> {
-        if self.planted() { return Err(GameErrors::AlreadyPlanted) }
+        if self.planted() { return Err(GameError::AlreadyPlanted) }
         self.plant_timestamp = Some(timestamp);
         Ok(())
     }
@@ -170,10 +169,15 @@ impl Field {
     }
 
     fn farm(&mut self) -> Result<()> {
-        if !self.planted() { return Err(GameErrors::AlreadyFarmed) }
-        if self.time_to_farm(get_sys_timestamp()) > 0 { return Err(GameErrors::NotYetReady) }
+        if !self.planted() { return Err(GameError::AlreadyFarmed) }
+        if self.time_to_farm(timestamp()) > 0 { return Err(GameError::NotYetReady) }
         self.plant_timestamp = None;
         Ok(())
+    }
+
+    fn earnings(&self) -> Money {
+        let mult = (1. + self.crop.level_multiplier()) + (1. + self.crop.level_multiplier()/10.);
+        self.crop.payout() + (mult*((self.level) as f64))
     }
 }
 
@@ -197,7 +201,7 @@ impl Farm {
 
     fn buy_field(&mut self, crop: Crop) -> Result<()> {
         let price = crop.get_new_field_price();
-        if self.money < price { return Err(GameErrors::InsufficientFunds) }
+        if self.money < price { return Err(GameError::InsufficientFunds) }
         self.fields.push(Field::new(crop));
         self.money -= price;
         Ok(())
@@ -206,10 +210,10 @@ impl Farm {
     fn level_up_field(&mut self, id: u32) -> Result<()> {
         let field = match self.fields.get_mut(id as usize) {
             Some(field) => field,
-            None => return Err(GameErrors::OutOfBounds),
+            None => return Err(GameError::OutOfBounds),
         };
 
-        if field.level_up_price()? > self.money { return Err(GameErrors::InsufficientFunds) }
+        if field.level_up_price()? > self.money { return Err(GameError::InsufficientFunds) }
         let level_up_price = field.level_up_price()?;
 
         field.level_up()?;
@@ -221,11 +225,11 @@ impl Farm {
     fn plant_field(&mut self, id: u32) -> Result<()> {
         let field = match self.fields.get_mut(id as usize) {
             Some(field) => field,
-            None => return Err(GameErrors::OutOfBounds),
+            None => return Err(GameError::OutOfBounds),
         };
 
         self.money -= field.crop.get_planting_price();
-        field.plant(get_sys_timestamp())?;
+        field.plant(timestamp())?;
 
         Ok(())
     }
@@ -233,16 +237,17 @@ impl Farm {
     fn farm_field(&mut self, id: u32) -> Result<Money> {
         let field = match self.fields.get_mut(id as usize) {
             Some(field) => field,
-            None => return Err(GameErrors::OutOfBounds),
+            None => return Err(GameError::OutOfBounds),
         };
 
         field.farm()?;
-        let payout = field.crop.payout() * (1. + field.crop.level_multiplier()*(field.level as f64));
+        let payout = field.earnings();
         self.money += payout;
         Ok(payout)
     }
 
     fn save_to_path(&self, path: String) {
+        thread::sleep(Duration::from_secs(2));
         let json: String = serde_json::to_string(self).unwrap();
         let file = std::fs::File::create(path).unwrap();
         // write all to file
@@ -250,6 +255,7 @@ impl Farm {
     }
 
     fn load_from_path(&mut self, path: String) {
+        thread::sleep(Duration::from_secs(2));
         let contents = std::fs::read_to_string(path).unwrap();
         let farm: Farm = serde_json::from_str(&contents).unwrap();
         *self = farm;
@@ -312,7 +318,7 @@ fn cli() {
                 }
             },
             6 => {
-                println!("Savin game...");
+                println!("Saving game...");
                 farm.save_to_path("save.json".to_string());
                 println!("Game saved");
             },
@@ -345,32 +351,25 @@ Pick an option:
 fn print_farm(farm: &Farm) {
     let field_string = farm.fields.iter().map(|f| 
         if f.planted() {
-            format!("{} field, level {}, ready to harvest in {} seconds", f.crop, f.level, f.time_to_farm(get_sys_timestamp())/1000)
+            format!("{} field, level {}, ready to harvest in {} seconds", f.crop, f.level, f.time_to_farm(timestamp())/1000)
         } else {
-            format!("{} field, level {}, price to plant ${:.2}", f.crop, f.level, f.crop.get_planting_price())
+            format!("{} field, level {}, price to plant ${:.2}, earnings ${:.2} per harvest", f.crop, f.level, f.crop.get_planting_price(), f.earnings())
         }
     ).collect::<Vec<String>>().join("\n  ");
-    println!(
-"Fields: [
-  {}
-]
-", field_string)
+    println!("Fields: [\n  {}\n]", field_string)
 }
 
 fn print_shop() {
-let fields_string = Farm::available_crops().iter().enumerate().map(|(i, c)| 
-    format!("{}: {} field for {}, harvest price ${:.2}", i+1, c, Field::calculate_price(*c), c.payout())
-).collect::<Vec<String>>().join("\n");
-println!(
-"Pick a field to buy:
-{}
-", fields_string)
+    let fields_string = Farm::available_crops().iter().enumerate().map(|(i, c)| 
+        format!("{}: {} field for {}, harvest price ${:.2}", i+1, c, Field::calculate_price(*c), c.payout())
+    ).collect::<Vec<String>>().join("\n");
+    println!("Pick a field to buy:\n{}", fields_string)
 }
 
 fn print_fields(farm: &Farm) {
     let fields_string = farm.fields.iter().enumerate().map(|(i, f)| 
         if f.planted() {
-            format!("{}: {} field, level {}, ready to harvest in {} seconds, price to level up ${:.2}", i+1, f.crop, f.level, f.time_to_farm(get_sys_timestamp())/1000, f.level_up_price().unwrap_or(f64::INFINITY))
+            format!("{}: {} field, level {}, ready to harvest in {} seconds, price to level up ${:.2}", i+1, f.crop, f.level, f.time_to_farm(timestamp())/1000, f.level_up_price().unwrap_or(f64::INFINITY))
         } else {
             format!("{}: {} field, level {}, price to plant ${:.2}, price to level up ${:.2}", i+1, f.crop, f.level, f.crop.get_planting_price(), f.level_up_price().unwrap_or(f64::INFINITY))
         }
