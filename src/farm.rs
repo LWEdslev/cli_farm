@@ -189,6 +189,8 @@ impl Farm {
             None => return Err(GameError::OutOfBounds),
         };
 
+        if field.crop.get_planting_price() > self.money { return Err(GameError::InsufficientFunds) }
+
         self.money -= field.crop.get_planting_price();
         field.plant(util::timestamp())?;
 
