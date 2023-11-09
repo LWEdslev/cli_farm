@@ -1,8 +1,23 @@
-use std::{time::Duration, thread};
+use std::{time::Duration, thread, io::{self, Write}, marker::PhantomData, sync::mpsc::channel};
 
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
+use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, self}, cursor, style};
 use strum::IntoEnumIterator;
 use colored::Colorize;
+
+enum State {
+    LoadMenu,
+    MainMenu,
+    ShopMenu,
+    FarmView,
+    PlantMenu,
+    HarvestMenu,
+    LevelUpMenu,
+    SellMenu,
+}
+
+
+const HEADER_HEIGHT: u16 = 15;
+const MONEY_LINE: u16 = 1;
 
 use crate::{farm::{Farm, Crop, Field}, util};
 
@@ -75,33 +90,42 @@ pub fn run() {
                 if farm.fields.is_empty() {
                     println!("No fields to plant");
                 } else {
-                    println!("{}", "Pick a field to plant".bold().underline());
-                    print_fields(&farm);
-                    let input = input(farm.fields.len() as u32);
-                    if input == 0 { continue }
-                    let id = input - 1;
-                    match farm.plant_field(id) {
-                        Ok(_) => println!("Field planted, it will be ready in {}s", format!("{}", farm.fields[id as usize].time_to_farm(util::timestamp())/1000).bold().bright_magenta()),
-                        Err(e) => println!("{}", e),
+                    loop {
+                        println!("{}", "Pick a field to plant".bold().underline());
+                        print_fields(&farm);
+                        let input = input(farm.fields.len() as u32);
+                        if input == 0 { break }
+                        let id = input - 1;
+                        print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
+                        match farm.plant_field(id) {
+                            Ok(_) => println!("Field planted, it will be ready in {}s", format!("{}", farm.fields[id as usize].time_to_farm(util::timestamp())/1000).bold().bright_magenta()),
+                            Err(e) => println!("{}", e),
+                        }
+                        update_money_line(farm.money);
+                        delete_lines(HEADER_HEIGHT, HEADER_HEIGHT + 1 + farm.fields.len() as u16);
                     }
                 }
-                wait()
             },
             3 => {
                 if farm.fields.is_empty() {
+                    print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
                     println!("No fields to farm");
                 } else {
-                    println!("{}", "Pick a field to farm".bold().underline());
-                    print_fields(&farm);
-                    let input = input(farm.fields.len() as u32);
-                    if input == 0 { continue }
-                    let id = input - 1;
-                    match farm.farm_field(id) {
-                        Ok(payout) => println!("Field farmed, you received ${payout:.2}"),
-                        Err(e) => println!("{}", e),
+                    loop {
+                        println!("{}", "Pick a field to farm".bold().underline());
+                        print_fields(&farm);
+                        let input = input(farm.fields.len() as u32);
+                        if input == 0 { break }
+                        let id = input - 1;
+                        print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
+                        match farm.farm_field(id) {
+                            Ok(payout) => println!("Field farmed, you received {}", format_money(payout)),
+                            Err(e) => println!("{}", e),
+                        }
+                        update_money_line(farm.money);
+                        delete_lines(HEADER_HEIGHT, HEADER_HEIGHT + 1 + farm.fields.len() as u16);
                     }
                 }
-                wait()
             },
             4 => {
                 print_shop();
@@ -128,13 +152,33 @@ pub fn run() {
                 wait()
             },
             6 => {
+                if farm.fields.is_empty() {
+                    println!("No fields to sell");
+                } else {
+                    println!("{}", "Pick a field to sell".bold().underline());
+                    print_fields(&farm);
+                    let inp = input(farm.fields.len() as u32);
+                    if inp == 0 { continue }
+                    let id = inp - 1;
+                    println!("Are you sure you want to sell the field?\n{}: Back\n{}: Yes", "0".bold(), "1".bold());
+                    let input = input(1);
+                    if input == 0 { continue }
+
+                    match farm.sell_field(id) {
+                        Ok(price) => println!("Field sold, you received {}", format_money(price)),
+                        Err(e) => println!("{}", e),
+                    }
+                }
+                wait()
+            }
+            7 => {
                 println!("Saving game...");
                 thread::sleep(Duration::from_secs(2));
                 farm.save_to_path("save.json".to_string());
                 println!("Game saved");
                 wait()
             },
-            7 => {
+            8 => {
                 println!("Loading game...");
                 thread::sleep(Duration::from_secs(2));
                 farm = Farm::load_from_path("save.json".to_string());
@@ -160,12 +204,13 @@ Pick an option:
 {}: Exit
 {}: View farm
 {}: Plant field
-{}: Farm field
+{}: Harvest field
 {}: Buy new field
 {}: Level up field
+{}: Sell field
 {}: Save game
 {}: Load game
-","0".bold(), "1".bold(), "2".bold(), "3".bold(), "4".bold(), "5".bold(), "6".bold(), "7".bold()
+","0".bold(), "1".bold(), "2".bold(), "3".bold(), "4".bold(), "5".bold(), "6".bold(), "7".bold(), "8".bold()
     )
 }
 
@@ -222,6 +267,8 @@ fn print_fields(farm: &Farm) {
 
 fn input(max: u32) -> u32 {
     loop {
+        // clear line
+        print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
         print!("> ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
         let mut input = String::new();
@@ -240,4 +287,42 @@ fn input(max: u32) -> u32 {
         }
         return input
     }
+}
+
+fn delete_line(line_number: u16) {
+    // Move the cursor to the start of the line
+    print!("{}", cursor::MoveTo(0, line_number));
+
+    // Clear the line
+    print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
+
+    // Flush the output to the terminal
+    io::stdout().flush().unwrap();
+}
+
+
+fn delete_lines(from: u16, to: u16) {
+    for line_number in from..=to {
+        delete_line(line_number);
+    }
+    print!("{}", cursor::MoveTo(0, from));
+
+}
+
+fn update_line(line_number: u16, new_content: &str) {
+    // Move the cursor to the start of the line
+    print!("{}", cursor::MoveTo(0, line_number));
+
+    // Clear the line
+    print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
+
+    // Print the updated content
+    print!("{}", style::Print(new_content));
+
+    // Flush the output to the terminal
+    io::stdout().flush().unwrap();
+}
+
+fn update_money_line(balance: f64) {
+    update_line(1, &format!("Balance: {}", format_money(balance)));
 }

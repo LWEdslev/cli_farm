@@ -163,6 +163,7 @@ impl Farm {
     pub fn buy_field(&mut self, crop: Crop) -> Result<()> {
         let price = crop.get_new_field_price();
         if self.money < price { return Err(GameError::InsufficientFunds) }
+        if self.fields.len() >= 9 { return Err(GameError::TooManyFields) }
         self.fields.push(Field::new(crop));
         self.money -= price;
         Ok(())
@@ -220,5 +221,17 @@ impl Farm {
         let contents = std::fs::read_to_string(path).unwrap();
         let farm: Farm = serde_json::from_str(&contents).unwrap();
         farm
+    }
+
+    pub fn sell_field(&mut self, id: u32) -> Result<Money> {
+        let field = match self.fields.get(id as usize) {
+            Some(field) => field,
+            None => return Err(GameError::OutOfBounds),
+        };
+
+        let payout = field.crop.get_new_field_price() * 0.5 + field.earnings() * 0.5;
+        self.fields.remove(id as usize);
+        self.money += payout;
+        Ok(payout)
     }
 }

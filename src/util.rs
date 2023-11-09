@@ -16,6 +16,7 @@ pub enum GameError {
     AlreadyPlanted,
     AlreadyFarmed,
     NotYetReady,
+    TooManyFields,
 }
 
 impl fmt::Display for GameError {
@@ -27,6 +28,7 @@ impl fmt::Display for GameError {
             GameError::AlreadyPlanted => "Already planted",
             GameError::AlreadyFarmed => "Already farmed",
             GameError::NotYetReady => "Not yet ready",
+            GameError::TooManyFields => "Too many fields",
         };
         write!(f, "{s}")
     }
