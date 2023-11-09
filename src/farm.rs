@@ -1,5 +1,4 @@
 use std::fmt;
-use colored::Color;
 use crossterm::style::Stylize;
 use strum::IntoEnumIterator;
 use util::Result;
@@ -50,8 +49,8 @@ impl Crop {
     pub fn grow_time(&self) -> u128 {
         let time = match self {
             Crop::Wheat => 100,
-            Crop::Potato => 200,
-            Crop::Carrot => 400,
+            Crop::Potato => 300,
+            Crop::Carrot => 1000,
         };
         util::seconds_to_millis(time)
     }

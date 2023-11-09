@@ -66,7 +66,7 @@ pub fn run() {
                 break
             },
             1 => {
-                println!("{}", "Your farm (any number to go back):".bold().underline());
+                println!("{}", "Your farm (enter any number to go back):".bold().underline());
                 print_farm(&farm);
                 let _input = input(u32::MAX);
                 continue 
@@ -118,7 +118,9 @@ pub fn run() {
             5 => {
                 println!("{}", "Pick a field to level up".bold().underline());
                 print_fields(&farm);
-                let id = input(farm.fields.len() as u32) - 1;
+                let input = input(farm.fields.len() as u32);
+                if input == 0 { continue }
+                let id = input - 1;
                 match farm.level_up_field(id) {
                     Ok(_) => println!("Field leveled up"),
                     Err(e) => println!("{}", e),
@@ -142,6 +144,7 @@ pub fn run() {
             _ => unreachable!(),
         }
     }
+    print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
 }
 
 fn wait() {
