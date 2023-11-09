@@ -51,7 +51,7 @@ pub fn run() {
         print_header(Some(&farm.name));
         println!("Balance: {}", format_money(farm.money));
         print_menu();
-        match input(7) {
+        match input(8) {
             0 => {
                 println!("Do you want to save the game?\n{}: Back\n{}: Yes\n{}: No", "0".bold(), "1".bold(), "2".bold());
                 let input = input(2);
@@ -128,13 +128,29 @@ pub fn run() {
                 wait()
             },
             6 => {
+                if farm.fields.is_empty() {
+                    println!("No fields to sell");
+                } else {
+                    println!("{}", "Pick a field to sell".bold().underline());
+                    print_fields(&farm);
+                    let input = input(farm.fields.len() as u32);
+                    if input == 0 { continue }
+                    let id = input - 1;
+                    match farm.sell_field(id) {
+                        Ok(price) => println!("Field sold, you received {}", format_money(price)),
+                        Err(e) => println!("{}", e),
+                    }
+                }
+                wait()
+            }
+            7 => {
                 println!("Saving game...");
                 thread::sleep(Duration::from_secs(2));
                 farm.save_to_path("save.json".to_string());
                 println!("Game saved");
                 wait()
             },
-            7 => {
+            8 => {
                 println!("Loading game...");
                 thread::sleep(Duration::from_secs(2));
                 farm = Farm::load_from_path("save.json".to_string());
@@ -160,12 +176,13 @@ Pick an option:
 {}: Exit
 {}: View farm
 {}: Plant field
-{}: Farm field
+{}: Harvest field
 {}: Buy new field
 {}: Level up field
+{}: Sell field
 {}: Save game
 {}: Load game
-","0".bold(), "1".bold(), "2".bold(), "3".bold(), "4".bold(), "5".bold(), "6".bold(), "7".bold()
+","0".bold(), "1".bold(), "2".bold(), "3".bold(), "4".bold(), "5".bold(), "6".bold(), "7".bold(), "8".bold()
     )
 }
 

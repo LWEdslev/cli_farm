@@ -162,6 +162,7 @@ impl Farm {
 
     pub fn buy_field(&mut self, crop: Crop) -> Result<()> {
         let price = crop.get_new_field_price();
+        if self.fields.len() >= 10 { return Err(GameError::MaxFieldsReached) }
         if self.money < price { return Err(GameError::InsufficientFunds) }
         self.fields.push(Field::new(crop));
         self.money -= price;
@@ -206,6 +207,19 @@ impl Farm {
         field.farm()?;
         let payout = field.earnings();
         self.money += payout;
+        Ok(payout)
+    }
+
+    pub fn sell_field(&mut self, id: u32) -> Result<Money> {
+        let field = match self.fields.get_mut(id as usize) {
+            Some(field) => field,
+            None => return Err(GameError::OutOfBounds),
+        };
+
+        let payout = field.crop.get_new_field_price() * 0.5 + field.crop.get_planting_price();
+        self.money += payout;
+        self.fields.remove(id as usize);
+
         Ok(payout)
     }
 
