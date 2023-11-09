@@ -5,9 +5,9 @@ use colored::Colorize;
 use crossterm::{terminal, cursor, style};
 
 fn main() {
-    //cli_farm::cli::run();
-    let mut cli = CLI::new();
-    cli.run();
+    cli_farm::cli::run();
+    //let mut cli = CLI::new();
+    //cli.run();
 }
 
 #[derive(Clone, Copy, Debug)]
