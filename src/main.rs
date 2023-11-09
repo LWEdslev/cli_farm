@@ -40,7 +40,6 @@ impl CLI {
             let pointer = &mut *self.state as *mut State;
             (*pointer) = state;
         }
-        println!("State set to {:?}", state);
     }
 
     fn new() -> Self {
@@ -62,7 +61,7 @@ impl CLI {
             let farm = farm_pointer;
             loop {
                 Self::print_header(state_pointer.clone(), &farm);
-                //thread::sleep(Duration::from_secs(1));
+                thread::sleep(Duration::from_millis(10));
             }
         });
 
@@ -220,18 +219,17 @@ Pick an option:
         let out = format!("{}\n{}\n{}\n{}\n{}\n{}", welcome, balance, field_string, pick, options, menu_specific_string);
         
         // clear screen
-        print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+        delete_lines(0, out.lines().count() as u16 - 1);
 
         println!("{}", out);
+        print!("> ");
+        // clear line
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
     }
 }
 
 fn input() -> u32 {
     loop {
-        // clear line
-        print!("{}", terminal::Clear(terminal::ClearType::CurrentLine));
-        print!("> ");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
         let mut input = String::new();
         match std::io::stdin().read_line(&mut input) {
             Ok(_) => (),
@@ -266,13 +264,14 @@ fn delete_line(line_number: u16) {
 
 
 fn delete_lines(from: u16, to: u16) {
-    // current cursor pos
-    
     for line_number in from..=to {
         delete_line(line_number);
     }
     
     // Move the cursor back to the original position
+    print!("{}", cursor::MoveTo(0, from));
+    std::io::stdout().flush().unwrap();
+
 }
 
 fn update_line(line_number: u16, new_content: &str) {
