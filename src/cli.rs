@@ -208,7 +208,7 @@ fn print_farm(farm: &Farm) {
 
 fn print_shop() {
     let fields_string = Farm::available_crops().iter().enumerate().map(|(i, c)| 
-        format!("{}: {} field for {}, earnings per harvest {}", format!("{}", i+1).bold(), c, format_money(Field::calculate_price(*c)), format_money(c.payout()))
+        format!("{}: {} field for {}, earnings per harvest {}, max level {}", format!("{}", i+1).bold(), c, format_money(Field::calculate_price(*c)), format_money(c.payout()), c.get_max_level().to_string().red().bold())
     ).collect::<Vec<String>>().join("\n");
     println!("{}", "Pick a field to buy:".bold().underline());
     println!("{}{}\n{}", "0".bold(), ": Back", fields_string)

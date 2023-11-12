@@ -15,6 +15,7 @@ pub enum Crop {
     Wheat,
     Potato,
     Carrot,
+    Tomato,
 }
 
 impl Crop {
@@ -23,6 +24,7 @@ impl Crop {
             Crop::Wheat => 10.,
             Crop::Potato => 100.,
             Crop::Carrot => 1000.,
+            Crop::Tomato => 10000.,
         }
     }
 
@@ -31,6 +33,7 @@ impl Crop {
             Crop::Wheat => 1.,
             Crop::Potato => 20.,
             Crop::Carrot => 50.,
+            Crop::Tomato => 100.,
         }
     }
 
@@ -39,6 +42,7 @@ impl Crop {
             Crop::Wheat => 5,
             Crop::Potato => 10,
             Crop::Carrot => 20,
+            Crop::Tomato => 50,
         }
     }
 
@@ -51,6 +55,7 @@ impl Crop {
             Crop::Wheat => 100,
             Crop::Potato => 300,
             Crop::Carrot => 1000,
+            Crop::Tomato => 5000,
         };
         util::seconds_to_millis(time)
     }
@@ -60,6 +65,7 @@ impl Crop {
             Crop::Wheat => 1.,
             Crop::Potato => 10.,
             Crop::Carrot => 100.,
+            Crop::Tomato => 200.,
         }
     }
 
@@ -77,6 +83,7 @@ impl fmt::Display for Crop {
             Crop::Wheat => "Wheat".bold().dark_green(),
             Crop::Potato => "Potato".bold().dark_yellow(),
             Crop::Carrot => "Carrot".bold().yellow(),
+            Crop::Tomato => "Tomato".bold().red(),
         };
         write!(f, "{s}")
     }
